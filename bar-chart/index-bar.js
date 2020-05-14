@@ -21,64 +21,107 @@ const xAxisGroup = graph
   .attr("transform", `translate(0,${graphHeight})`);
 const yAxisGroup = graph.append("g");
 
-db.collection("dishes")
-  .get()
-  .then((res) => {
-    let data = [];
-    res.docs.forEach((doc) => {
-      data.push(doc.data());
-    });
-    //join the data to rects
-    const rects = graph.selectAll("rect").data(data);
+// scales
 
-    // linear scale
-    const y = d3
-      .scaleLinear()
-      .domain([0, d3.max(data, (d) => d.orders)])
-      .range([graphHeight, 0]);
+// linear scale
+const y = d3.scaleLinear().range([graphHeight, 0]);
 
-    //   const max = d3.max(data, (d) => d.orders);
-    //   const min = d3.min(data, (d) => d.orders);
-    //   const extent = d3.extent(data, (d) => d.orders);
+// band scale
+const x = d3.scaleBand().range([0, 500]).paddingInner(0.2).paddingOuter(0.2);
 
-    // band scale
-    const x = d3
-      .scaleBand()
-      .domain(data.map((item) => item.name))
-      .range([0, 500])
-      .paddingInner(0.2)
-      .paddingOuter(0.2);
+//create the axes
+const xAxis = d3.axisBottom(x);
+const yAxis = d3
+  .axisLeft(y)
+  .ticks(20)
+  .tickFormat((d) => d + " orders");
 
-    rects
-      .attr("width", x.bandwidth)
-      .attr("height", (d) => graphHeight - y(d.orders))
-      .attr("fill", "orange")
-      .attr("y", (d) => y(d.orders))
-      .attr("x", (d) => x(d.name));
+// update function
+const update = (data) => {
+  // 1. update scales(domains) if they rely on our data
+  y.domain([0, d3.max(data, (d) => d.orders)]);
+  x.domain(data.map((item) => item.name));
 
-    //append the enter selection to the DOM
-    rects
-      .enter()
-      .append("rect")
-      .attr("width", x.bandwidth)
-      .attr("height", (d) => graphHeight - y(d.orders))
-      .attr("fill", "orange")
-      .attr("y", (d) => y(d.orders))
-      .attr("x", (d) => x(d.name));
+  //2. join updated data to the elements
 
-    //create and call the axes
-    const xAxis = d3.axisBottom(x);
-    const yAxis = d3
-      .axisLeft(y)
-      .ticks(20)
-      .tickFormat((d) => d + " orders");
+  //join the data to rects
+  const rects = graph.selectAll("rect").data(data);
 
-    xAxisGroup.call(xAxis);
-    yAxisGroup.call(yAxis);
+  //3. remove any unwanted shapes using the exit selection
+  rects.exit().remove();
 
-    xAxisGroup
-      .selectAll("text")
-      .attr("transform", "rotate(-40)")
-      .attr("text-anchor", "end")
-      .attr("fill", "orange");
+  //4. update current shapes in the dom
+  rects
+    .attr("width", x.bandwidth)
+    .attr("height", (d) => graphHeight - y(d.orders))
+    .attr("fill", "orange")
+    .attr("y", (d) => y(d.orders))
+    .attr("x", (d) => x(d.name));
+
+  // 5. append the enter selection to the dom
+  //append the enter selection to the DOM
+  rects
+    .enter()
+    .append("rect")
+    .attr("width", x.bandwidth)
+    .attr("height", (d) => graphHeight - y(d.orders))
+    .attr("fill", "orange")
+    .attr("y", (d) => y(d.orders))
+    .attr("x", (d) => x(d.name));
+
+  // call the axes
+  xAxisGroup.call(xAxis);
+  yAxisGroup.call(yAxis);
+
+  // update x axis text
+  xAxisGroup
+    .selectAll("text")
+    .attr("transform", "rotate(-40)")
+    .attr("text-anchor", "end")
+    .attr("fill", "orange");
+};
+
+let data = [];
+// get data from firestore with updates
+db.collection("dishes").onSnapshot((res) => {
+  
+  res.docChanges().forEach((change) => {
+    // console.log(change.doc.data())
+    const doc = { ...change.doc.data(), id: change.doc.id };
+    switch (change.type) {
+      case "added":
+        data.push(doc);
+        break;
+      case "modified":
+        const index = data.findIndex((item) => item.id === doc.id);
+        data[index] = doc;
+        break;
+      case "removed":
+        data = data.filter((item) => item.id !== doc.id);
+        break;
+      default:
+        break;
+    }
   });
+
+  update(data);
+
+});
+
+// get data from firestore
+// db.collection("dishes")
+//   .get()
+//   .then((res) => {
+//     let data = [];
+
+//     res.docs.forEach((doc) => {
+//       data.push(doc.data());
+//     });
+
+//     update(data);
+
+//     // d3.interval(() => {
+//     //   data[0].orders += 50;
+//     // }, 1000);
+
+//   });
