@@ -36,6 +36,8 @@ const yAxis = d3
   .ticks(20)
   .tickFormat((d) => d + " orders");
 
+const t = d3.transition().duration(3000);
+
 // update function
 const update = (data) => {
   // 1. update scales(domains) if they rely on our data
@@ -53,21 +55,26 @@ const update = (data) => {
   //4. update current shapes in the dom
   rects
     .attr("width", x.bandwidth)
-    .attr("height", (d) => graphHeight - y(d.orders))
     .attr("fill", "orange")
-    .attr("y", (d) => y(d.orders))
-    .attr("x", (d) => x(d.name));
+    .attr("x", (d) => x(d.name))
+    .transition(t)
+    .attr("height", (d) => graphHeight - y(d.orders))
+    .attr("y", (d) => y(d.orders));
 
   // 5. append the enter selection to the dom
   //append the enter selection to the DOM
   rects
     .enter()
     .append("rect")
-    .attr("width", x.bandwidth)
-    .attr("height", (d) => graphHeight - y(d.orders))
     .attr("fill", "orange")
-    .attr("y", (d) => y(d.orders))
-    .attr("x", (d) => x(d.name));
+    .attr("x", (d) => x(d.name))
+    .attr("height", 0)
+    .attr("y", graphHeight)
+    .merge(rects)
+    .transition(t)
+    .attrTween("width", widthTween)
+    .attr("height", (d) => graphHeight - y(d.orders))
+    .attr("y", (d) => y(d.orders));
 
   // call the axes
   xAxisGroup.call(xAxis);
@@ -84,7 +91,6 @@ const update = (data) => {
 let data = [];
 // get data from firestore with updates
 db.collection("dishes").onSnapshot((res) => {
-  
   res.docChanges().forEach((change) => {
     // console.log(change.doc.data())
     const doc = { ...change.doc.data(), id: change.doc.id };
@@ -105,8 +111,21 @@ db.collection("dishes").onSnapshot((res) => {
   });
 
   update(data);
-
 });
+
+// TWEENS
+
+const widthTween = (d) => {
+  //define interpolation
+  //d3.interpolate returns a function which we call 'i'
+  let i = d3.interpolate(0, x.bandwidth());
+
+  // return a funtion which takes a time ticker 't'
+  return function (t) {
+    //return the value from passing the ticker into the interpolation
+    return i(t);
+  };
+};
 
 // get data from firestore
 // db.collection("dishes")
