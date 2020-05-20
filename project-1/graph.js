@@ -23,10 +23,35 @@ const arcPath = d3
 
 const color = d3.scaleOrdinal(d3["schemeSet3"]);
 
+//legend setup
+const legendGroup = svg
+  .append("g")
+  .attr("transform", `translate(${dims.width + 40},10)`);
+
+const legend = d3.legendColor().shape("circle").shapePadding(10).scale(color);
+
+// tooltip
+const tip = d3
+  .tip()
+  .attr("class", "tipu card")
+  .html((d) => {
+    let content = `<div class="name">${d.data.name} </div>`;
+    content += `<div class="cost">${d.data.cost} </div>`;
+    content += `<div class="delete">Click slice to delete </div>`;
+    content = `<div class="tip"> ${content} </div>`
+    return content;
+  });
+
+graph.call(tip);
+
 // update function
 const update = (data) => {
   //update color scale domain
   color.domain(data.map((d) => d.name));
+
+  // update and call legend
+  legendGroup.call(legend);
+  legendGroup.selectAll("text").attr("fill", "white");
 
   //join enhanced (pie) data to path elements
   const paths = graph.selectAll("path").data(pie(data));
@@ -34,11 +59,7 @@ const update = (data) => {
   //exit
   paths.exit().transition().duration(750).attrTween("d", arcTweenExit).remove();
   // updates
-  paths
-    .attr("d", arcPath)
-    .transition()
-    .duration(750)
-    .attrTween("d", arcTweenUpdate);
+  paths.transition().duration(750).attrTween("d", arcTweenUpdate);
 
   // enter
   paths
@@ -55,6 +76,19 @@ const update = (data) => {
     .transition()
     .duration(750)
     .attrTween("d", arcTweenEnter);
+
+  // add events
+  graph
+    .selectAll("path")
+    .on("mouseover", (d, i, n) => {
+      tip.show(d, n[i]);
+      handleMouseOver(d, i, n);
+    })
+    .on("mouseout", (d, i, n) => {
+      tip.hide();
+      handleMouseOut(d, i, n);
+    })
+    .on("click", handleClick);
 };
 
 // data and firestore
@@ -112,3 +146,23 @@ function arcTweenUpdate(d) {
     return arcPath(i(t));
   };
 }
+
+//event handlers
+const handleMouseOver = (d, i, n) => {
+  d3.select(n[i])
+    .transition("changeSliceFill")
+    .duration(300)
+    .attr("fill", "#fff");
+};
+
+const handleMouseOut = (d, i, n) => {
+  d3.select(n[i])
+    .transition("changeSliceFill")
+    .duration(300)
+    .attr("fill", color(d.data.name));
+};
+
+const handleClick = (d) => {
+  const id = d.data.id;
+  db.collection("expenses").doc(id).delete();
+};
