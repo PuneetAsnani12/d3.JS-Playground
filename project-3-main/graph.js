@@ -59,6 +59,7 @@ const update = (data) => {
     .enter()
     .append("g")
     .attr("class", "node")
+    .style("cursor", "pointer")
     .attr("transform", (d) => `translate(${d.x},${d.y})`);
 
   //append rects to the enter nodes
@@ -80,6 +81,24 @@ const update = (data) => {
     .attr("text-anchor", "middle")
     .attr("fill", "white")
     .text((d) => d.data.name);
+
+  var deltaX, deltaY;
+
+  var dragHandler = d3
+    .drag()
+    .on("start", function () {
+      var current = this.transform.baseVal.consolidate().matrix;
+      deltaX = current.e - d3.event.x;
+      deltaY = current.f - d3.event.y;
+    })
+    .on("drag", function (d) {
+      d3.select(this).attr(
+        "transform",
+        `translate(${d3.event.x + deltaX},${d3.event.y + deltaY})`
+      );
+    });
+
+  dragHandler(enterNodes);
 };
 
 // data and firestore
@@ -88,7 +107,6 @@ let data = [];
 db.collection("employees").onSnapshot((res) => {
   res.docChanges().forEach((change) => {
     const doc = { ...change.doc.data(), id: change.doc.id };
-    console.log(doc);
     switch (change.type) {
       case "added":
         data.push(doc);
